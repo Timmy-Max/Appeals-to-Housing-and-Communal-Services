@@ -18,7 +18,7 @@ def encode_labels(data_path: str):
     data = pd.read_csv(data_path, encoding='utf-8-sig')
     label_encoder = LabelEncoder()
     data.loc[:, 'category_name'] = label_encoder.fit_transform(data.loc[:, 'category_name'])
-    output_path = 'data/interim/encode_labels.csv'
+    output_path = 'data/interim/encoded_labels.csv'
     data.to_csv(output_path, index=False, header=True, encoding='utf-8-sig')
     print(f"Dataset with encoded labels saved to path: {output_path}")
     output_path = 'src/features/label_encoder.pickle'
@@ -89,7 +89,13 @@ def split(data_path: str) -> tuple[tuple[list, list, list], tuple[list, list, li
     texts = list(data.loc[:, 'appeal_text'])
     labels = list(data.loc[:, 'category_name'])
     train_data, test_data, train_labels, test_labels = train_test_split(texts, labels, test_size=0.05)
-    train_data, val_data, train_labels, val_labels = train_test_split(train_data, train_labels, test_size=15/95)
+    train_data, val_data, train_labels, val_labels = train_test_split(train_data, train_labels, test_size=15 / 95)
     data = train_data, val_data, test_data
     labels = train_labels, val_labels, test_labels
     return data, labels
+
+
+if __name__ == '__main__':
+    encode_labels('data/interim/extracted.csv')
+    clear_data('data/interim/encoded_labels.csv')
+

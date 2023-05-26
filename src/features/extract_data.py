@@ -1,4 +1,4 @@
-"""The module implements data extraction functions."""
+"""The module implements data extraction function."""
 
 import pandas as pd
 import os
@@ -35,3 +35,6 @@ def extract_dataset(files_path: str):
     data.to_csv(output_path, index=False, header=True, encoding='utf-8-sig')
     print(f"Data extracted to path: {output_path}")
 
+
+if __name__ == '__main__':
+    extract_dataset('data/raw/src_files')

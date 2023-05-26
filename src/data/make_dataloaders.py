@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from typing import Any
 
 
-def get_dataloaders(train_data,
+def get_dataloaders(train_data:list,
                     val_data: list,
                     test_data: list,
                     train_labels: list,
