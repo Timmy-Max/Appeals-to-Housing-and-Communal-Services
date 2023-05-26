@@ -1,11 +1,10 @@
 """The module implements functions to make dataset for transformer format."""
-from typing import Any
-
 import torch
+
 from torch import Tensor
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
+from typing import Any
 
 
 def get_dataloaders(train_data,
