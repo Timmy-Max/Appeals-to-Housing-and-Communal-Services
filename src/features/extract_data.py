@@ -23,16 +23,15 @@ def extract_dataset(files_path: str):
                 if widget['widget'] == 'public.petition':
                     for text_part in widget['payload']['body']:
                         if text_part['typeof'] == 1:
-                            text = text + text_part['text']
+                            text += text_part['text']
                     break
 
-            category_id = data['reason']['category']['id']
-            district_name = data['district_name']
             category_name = data['reason']['category']['name']
+            rows.append([text, category_name])
 
-            rows.append([text, category_id, category_name, district_name])
-            categories[category_id] = category_name
+    data = pd.DataFrame(rows, columns=['appeal_text', 'category_name'])
+    data = data.loc[:, ['appeal_text', 'category_name']]
+    output_path = 'data/interim/extracted.csv'
+    data.to_csv(output_path, index=False, header=True, encoding='utf-8-sig')
+    print(f"Data extracted to path: {output_path}")
 
-    data = pd.DataFrame(rows, columns=['appeal_text', 'category_id', 'category_name', 'district_name'])
-    data = data.loc[['appeal_text', 'category_name']]
-    data.to_csv('data/interim/extracted.csv', index=False, header=True, encoding='utf-8-sig')
