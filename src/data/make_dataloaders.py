@@ -1,5 +1,5 @@
 """The module implements functions to make dataset for transformer format."""
-from typing import Dict, Any
+from typing import Any
 
 import torch
 from torch import Tensor
