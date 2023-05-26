@@ -1,10 +1,12 @@
-""""The module implements functions to preprocess data"""
+"""The module implements functions to preprocess data."""
+from typing import Tuple, Any
 
 import pandas as pd
 import pickle
 import re
 
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 
 
 def encode_labels(data_path: str):
@@ -33,7 +35,6 @@ def clear_sentence(sentence: str) -> str:
 
         Returns:
             str: cleared sentence
-
     """
     pattern = "[A-Za-z!#№$%&'()*+,./:;<=>?@[\]^_`{|}~—\"\-]+"
     emoji_pattern = re.compile("["
@@ -73,3 +74,22 @@ def clear_data(data_path: str):
     output_path = 'data/processed/data.csv'
     data.to_csv(output_path, index=False, header=True, encoding='utf-8-sig')
     print(f"Cleared dataset saved to path: {output_path}")
+
+
+def split(data_path: str) -> tuple[tuple[list, list, list], tuple[list, list, list]]:
+    """Accept path to dataset, returns train, validation and test data (80, 15, 5 %).
+
+        Args:
+            data_path (str): path to dataset
+
+        Returns: data, labels (tuple[tuple[list, list, list], tuple[list, list, list]]): train, validation and test
+        data and labels
+    """
+    data = pd.read_csv(data_path, encoding='utf-8-sig')
+    texts = list(data.loc[:, 'appeal_text'])
+    labels = list(data.loc[:, 'category_name'])
+    train_data, test_data, train_labels, test_labels = train_test_split(texts, labels, test_size=0.05)
+    train_data, val_data, train_labels, val_labels = train_test_split(train_data, train_labels, test_size=15/95)
+    data = train_data, val_data, test_data
+    labels = train_labels, val_labels, test_labels
+    return data, labels
