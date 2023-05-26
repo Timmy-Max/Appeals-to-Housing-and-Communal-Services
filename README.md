@@ -1,5 +1,5 @@
 # Appeals-to-Housing-and-Communal-services
-Housing and communal services wants to learn how to automatically determine the topic of a citizen's appeal. This will speed up the decision-making process and help people in a shorter time.
+Housing and communal services wants to learn how to automatically determine the topic of a citizen's appeal. This will speed up the decision-making process and help people in a shorter time. And it will also help relieve the staff.
 List of categories:
 1. The content of the Appartment Building (Содержание МКД)
 2. Landscaping (Благоустройство)
