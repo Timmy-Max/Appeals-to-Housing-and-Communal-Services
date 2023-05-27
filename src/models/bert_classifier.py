@@ -13,7 +13,7 @@ from src.features.preprocess import split
 
 class BertClassifier:
 
-    def __init__(self, model_path, tokenizer_path, n_classes=2, epochs=1, model_save_path='models/bert.pt'):
+    def __init__(self, model_path, tokenizer_path, n_classes=2, epochs=1, dropout=0.3, model_save_path='models/bert.pt'):
         """Init BERT Classifier class properties.
 
             Args:
@@ -36,7 +36,17 @@ class BertClassifier:
         self.max_len = 512
         self.epochs = epochs
         self.out_features = self.model.bert.encoder.layer[1].output.dense.out_features
-        self.model.classifier = torch.nn.Linear(self.out_features, n_classes)
+        self.model.classifier = torch.nn.Sequential(
+            torch.nn.Linear(self.out_features, self.out_features // 2),
+            torch.nn.BatchNorm1d(self.out_features // 2),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(dropout),
+            torch.nn.Linear(self.out_features // 2, self.out_features // 4),
+            torch.nn.BatchNorm1d(self.out_features // 4),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(dropout),
+            torch.nn.Linear(self.out_features // 4, n_classes)
+        )
         self.model.to(self.device)
 
     def preparation(self, path_to_data: str):
@@ -94,10 +104,10 @@ class BertClassifier:
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
-            self.scheduler.step()
             self.optimizer.zero_grad()
             count = i
 
+        self.scheduler.step()
         train_acc = correct_predictions.double() / count
         train_loss = np.mean(losses)
         return train_acc, train_loss
