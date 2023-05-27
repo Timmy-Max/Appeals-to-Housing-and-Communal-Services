@@ -7,6 +7,7 @@ import re
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from nltk.tokenize import word_tokenize
 
 
 def encode_labels(data_path: str):
@@ -36,7 +37,7 @@ def clear_sentence(sentence: str) -> str:
         Returns:
             str: cleared sentence
     """
-    pattern = "[A-Za-z!#№$%&'()*+,./:;<=>?@[\]^_`{|}~—\"\-]+"
+    pattern = r'[^\w]'
     emoji_pattern = re.compile("["
                                u"\U0001F600-\U0001F64F"  # emoticons
                                u"\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -60,7 +61,10 @@ def clear_sentence(sentence: str) -> str:
     sentence = re.sub(emoji_pattern, ' ', sentence)  # delete emoji
     sentence = re.sub(pattern, ' ', sentence)  # delete tech symbols
     sentence = sentence.lower()  # to lower
-    return sentence
+    tokens = word_tokenize(sentence, language='russian')  # tokenize
+    tokens = [token for token in tokens if token not in ["й", "м", "ая", "ый", "ой", "ым"]]
+
+    return " ".join(tokens)
 
 
 def clear_data(data_path: str):

@@ -6,14 +6,14 @@ import torch
 from numpy import ndarray
 
 from transformers import BertTokenizer, BertForSequenceClassification
-from transformers import AdamW, get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup
 from src.data.make_dataloaders import get_dataloaders
 from src.features.preprocess import split
 
 
 class BertClassifier:
 
-    def __init__(self, model_path, tokenizer_path, n_classes=2, epochs=1, model_save_path='/models/bert.pt'):
+    def __init__(self, model_path, tokenizer_path, n_classes=2, epochs=1, model_save_path='models/bert.pt'):
         """Init BERT Classifier class properties.
 
             Args:
@@ -56,7 +56,7 @@ class BertClassifier:
                                                                                self.test_labels,
                                                                                self.tokenizer)
 
-        self.optimizer = AdamW(self.model.parameters(), lr=2e-5, correct_bias=False)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=2e-5)
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer,
             num_warmup_steps=0,
