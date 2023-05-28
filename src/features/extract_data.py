@@ -36,5 +36,3 @@ def extract_dataset(files_path: str):
     print(f"Data extracted to path: {output_path}")
 
 
-if __name__ == '__main__':
-    extract_dataset('data/raw/src_files')

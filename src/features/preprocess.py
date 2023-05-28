@@ -7,6 +7,7 @@ import re
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
 from nltk.tokenize import word_tokenize
 
 
@@ -37,7 +38,6 @@ def clear_sentence(sentence: str) -> str:
         Returns:
             str: cleared sentence
     """
-    pattern = r'[^\w]'
     emoji_pattern = re.compile("["
                                u"\U0001F600-\U0001F64F"  # emoticons
                                u"\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -58,13 +58,29 @@ def clear_sentence(sentence: str) -> str:
                                u"\ufe0f"  # dingbats
                                u"\u3030"
                                "]+", re.UNICODE)
-    sentence = re.sub(emoji_pattern, ' ', sentence)  # delete emoji
-    sentence = re.sub(pattern, ' ', sentence)  # delete tech symbols
-    sentence = sentence.lower()  # to lower
-    tokens = word_tokenize(sentence, language='russian')  # tokenize
-    tokens = [token for token in tokens if token not in ["й", "м", "ая", "ый", "ой", "ым"]]
+    # my_stop_words = ['санкт', 'петербург', 'фотофиксация', 'прилагаться', 'номер', 'спасибо', 'пожалуйста',
+    #                 'здравствуйте',
+    #                 'добрый', 'день', 'ул', 'рф', 'россия', 'правительство', 'управлять', 'компания', 'суворовский',
+    #                 'литовский', 'далее', 'закон', 'тсж', 'председатель', 'этаж', 'здравствуйте', 'ленинградские',
+    #                 'отказывается', 'принимать', 'заявку', 'на', 'устранение', 'более', 'полугода', 'предпортовый',
+    #                 'пр', 'д', 'пр', 'ветеранов', 'г', "шаумяна"]
 
-    return " ".join(tokens)
+    # districts_names = ['адмиралтейский', 'василеостровский', 'выборгский', 'калининский', 'кировский', 'колпинский',
+    #                   'красногвардейский', 'красносельский', 'кронштадтский', 'курортный', 'московский', 'невский',
+    #                   'петроградский', 'петродворцовый', 'приморский', 'пушкинский', 'фрунзенский', 'центральный']
+
+    sentence = sentence.lower()  # to lower
+    sentence = re.sub(emoji_pattern, '', sentence)  # delete emoji
+    sentence = re.sub(r'\d\w{1,2}', '', sentence)  # delete digits
+    sentence = re.sub(r'\d', '', sentence)  # delete digits
+    sentence = re.sub(r'[^\w\s]', '', sentence)  # delete symbols
+    sentence = re.sub(r'[a-zA-Z\s]+', ' ', sentence)  # delete english symbols
+    # sentence = word_tokenize(sentence, language='russian')  # tokenize
+    # sentence = [token for token in sentence if token not in ['й', 'м', 'ый', 'ая', 'ой', 'ий', 'ым', 'я']]
+    # sentence = [token for token in sentence if token not in my_stop_words]
+    # sentence = [token for token in sentence if token not in districts_names]
+    # print(" ".join(sentence))
+    return sentence
 
 
 def clear_data(data_path: str):
@@ -80,26 +96,40 @@ def clear_data(data_path: str):
     print(f"Cleared dataset saved to path: {output_path}")
 
 
-def split(data_path: str) -> tuple[tuple[list, list, list], tuple[list, list, list]]:
-    """Accept path to dataset, returns train, validation and test data (80, 15, 5 %).
+def one_hot(k: int, n_classes: int = 15) -> list:
+    """Accepts class number, returns one-hot vector.
+
+        Args:
+            n_classes:
+            k (int): class number
+
+        Returns:
+            list: one-hot vector
+    """
+    hot = [0] * n_classes
+    hot[k] = 1.0
+    return hot
+
+
+def split(data_path: str) -> tuple[list, list, list, list]:
+    """Accept path to dataset, returns train and test data (80, 20 %).
 
         Args:
             data_path (str): path to dataset
 
-        Returns: data, labels (tuple[tuple[list, list, list], tuple[list, list, list]]): train, validation and test
-        data and labels
+        Returns:
+            data, labels (tuple[list, list, list, list]): train, validation, test data and labels
     """
     data = pd.read_csv(data_path, encoding='utf-8-sig')
     texts = list(data.loc[:, 'appeal_text'])
     labels = list(data.loc[:, 'category_name'])
-    train_data, test_data, train_labels, test_labels = train_test_split(texts, labels, test_size=0.05)
-    train_data, val_data, train_labels, val_labels = train_test_split(train_data, train_labels, test_size=15 / 95)
-    data = train_data, val_data, test_data
-    labels = train_labels, val_labels, test_labels
-    return data, labels
+    train_data, test_data, train_labels, test_labels = train_test_split(texts, labels, test_size=0.20)
+    # train_data, val_data, train_labels, val_labels = train_test_split(train_data, train_labels, test_size=15 / 95)
+    # train_labels = [one_hot(k) for k in train_labels]
+    # val_labels = [one_hot(k) for k in val_labels]
+    # test_data = [one_hot(k) for k in test_labels]
+    # data = train_data, val_data, test_data
+    # labels = train_labels, val_labels, test_labels
+    return train_data, test_data, train_labels, test_labels
 
-
-if __name__ == '__main__':
-    encode_labels('data/interim/extracted.csv')
-    clear_data('data/interim/encoded_labels.csv')
 
