@@ -1,41 +1,61 @@
 """This file is intended for calculating metrics."""
 import torch
-import src.models.bert_classifier as bc
+from numpy import ndarray
+
+from src.models.bert_classifier import load_model, BertClassifier
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.metrics import confusion_matrix
 
-classifier = bc.BertClassifier(
-    model_path='cointegrated/rubert-tiny',
-    tokenizer_path='cointegrated/rubert-tiny',
-    n_classes=15,
-    epochs=6
-)
 
-path_to_model = r'D:\Projects\Appeals-to-Housing-and-Communal-services\models\bert.pt'
-classifier.model = torch.load(path_to_model)
+def compute_metrics(
+    classifier: str | BertClassifier,
+    n_classes: int = 15,
+    path_to_data: str = "data/processed/data.csv",
+) -> tuple[float, float, float, float, float, ndarray]:
+    """Compute and returns metrics.
 
-path_to_data = r'D:\Projects\Appeals-to-Housing-and-Communal-services\data\processed\data.csv'
-classifier.preparation(path_to_data, lr=2e-5, batch_size=32)
+    Args:
+        classifier (str|BertClassifier): path to saved model or model
+        path_to_data (str): path to data
+        n_classes (int): number of output classes
 
-predictions = []
-test_labels = []
-with torch.no_grad():
-    for data in classifier.valid_loader:
-        input_ids = data["input_ids"].to(classifier.device)
-        attention_mask = data["attention_mask"].to(classifier.device)
-        targets = data["targets"].to(classifier.device)
-
-        outputs = classifier.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask
+    Returns: (tuple[float, float, float, float, float, ndarray]): accuracy, balanced_accuracy, precision,
+    recall, F1-score, confusion matrix
+    """
+    if isinstance(classifier, str):
+        classifier = load_model(
+            path_to_model=classifier,
+            model_path="cointegrated/rubert-tiny",
+            tokenizer_path="cointegrated/rubert-tiny",
+            path_to_data=path_to_data,
+            n_classes=n_classes,
         )
 
-        predictions.extend(torch.argmax(outputs.logits, dim=1).detach().cpu().numpy())
-        test_labels.extend(list(targets.detach().cpu().numpy()))
+    predictions = []
+    test_labels = []
+    with torch.no_grad():
+        for data in classifier.valid_loader:
+            input_ids = data["input_ids"].to(classifier.device)
+            attention_mask = data["attention_mask"].to(classifier.device)
+            targets = data["targets"].to(classifier.device)
 
-accuracy = accuracy_score(test_labels, predictions)
-precision, recall, f1score = precision_recall_fscore_support(test_labels, predictions, average='micro')[:3]
-balanced_accuracy = balanced_accuracy_score(test_labels, predictions)
-print(f'accuracy: {accuracy:.3f}, balanced accuracy: {balanced_accuracy:.3f}')
-print(f'precision: {precision:.3f}, recall: {recall:.3f}, f1score: {f1score:.3f}')
+            outputs = classifier.model(
+                input_ids=input_ids, attention_mask=attention_mask
+            )
 
+            predictions.extend(
+                torch.argmax(outputs.logits, dim=1).detach().cpu().numpy()
+            )
+            test_labels.extend(list(targets.detach().cpu().numpy()))
+
+    accuracy = accuracy_score(test_labels, predictions)
+    precision, recall, f1score = precision_recall_fscore_support(
+        test_labels, predictions, average="macro"
+    )[:3]
+    balanced_accuracy = balanced_accuracy_score(test_labels, predictions)
+    cm = confusion_matrix(test_labels, predictions)
+    print(f"Accuracy: {accuracy:.3f}, Balanced Accuracy: {balanced_accuracy:.3f}")
+    print("The following metrics are obtained by macro-averaging")
+    print(f"Precision: {precision:.3f}, Recall: {recall:.3f}, F1-score: {f1score:.3f}")
+    return accuracy, balanced_accuracy, precision, recall, f1score, cm

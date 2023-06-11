@@ -2,7 +2,6 @@
 import numpy as np
 import torch
 import time
-import pickle
 
 from typing import Any
 from numpy import ndarray
@@ -10,23 +9,76 @@ from torch.utils.data import DataLoader
 from transformers import BertTokenizer, BertForSequenceClassification
 from transformers import get_linear_schedule_with_warmup
 from src.data.make_dataloaders import CustomDataset
-from src.data.make_dataloaders import get_dataloaders
 from src.features.preprocess import split
 
 
-class BertClassifier:
+def load_model(
+    path_to_model: str,
+    model_path: str = "cointegrated/rubert-tiny",
+    tokenizer_path: str = "cointegrated/rubert-tiny",
+    n_classes: int = 15,
+    epochs: int = 1,
+    dropout: float = 0.3,
+    max_len: int = 512,
+    model_save_path: str = "models/bert.pt",
+    path_to_data: str = "data/processed/data.csv",
+    lr: float = 2e-5,
+    batch_size: int = 32,
+    weights: list = None,
+):
+    """Initializes, prepared the model and load its weights
+    Args:
+        path_to_model (str): path to saved model weights
+        model_path (str): model name
+        tokenizer_path (str): tokenizer name
+        n_classes (int): how many classes to predict
+        epochs (int): number of epochs
+        dropout (float): dropout of classificator
+        max_len (int): maximum text length
+        model_save_path (str): path to save model
+        path_to_data (str): path to data
+        lr (float): learning rate
+        batch_size (int): batch size
+        weights (list): use weighted loss
 
-    def __init__(self,
-                 model_path: str,
-                 tokenizer_path: str,
-                 n_classes: int = 15,
-                 epochs: int = 1,
-                 dropout: float = 0.3,
-                 max_len: int = 512,
-                 model_save_path='models/bert.pt'):
+    Returns:
+        BertClassifier: loaded model
+    """
+    classifier_model = BertClassifier(
+        model_path=model_path,
+        tokenizer_path=tokenizer_path,
+        n_classes=n_classes,
+        epochs=epochs,
+        dropout=dropout,
+        max_len=max_len,
+        model_save_path=model_save_path,
+        path_to_data=path_to_data,
+        lr=lr,
+        batch_size=batch_size,
+        weights=weights,
+    )
+    classifier_model.model = torch.load(path_to_model)
+    return classifier_model
+
+
+class BertClassifier:
+    def __init__(
+        self,
+        model_path: str = "cointegrated/rubert-tiny",
+        tokenizer_path: str = "cointegrated/rubert-tiny",
+        n_classes: int = 15,
+        epochs: int = 1,
+        dropout: float = 0.3,
+        max_len: int = 512,
+        model_save_path: str = "models/bert.pt",
+        path_to_data: str = "data/processed/data.csv",
+        lr: float = 2e-5,
+        batch_size: int = 32,
+        weights: list = None,
+    ):
         """Init BERT Classifier class properties.
 
-            Args:
+        Args:
             model_path (str): model name
             tokenizer_path (str): tokenizer name
             n_classes (int): how many classes to predict
@@ -34,6 +86,10 @@ class BertClassifier:
             dropout (float): dropout of classificator
             max_len (int): maximum text length
             model_save_path (str): path to save model
+            path_to_data (str): path to data
+            lr (float): learning rate
+            batch_size (int): batch size
+            weights (list): use weighted loss
         """
         self.train_loader = None
         self.valid_loader = None
@@ -61,38 +117,54 @@ class BertClassifier:
             torch.nn.BatchNorm1d(self.out_features // 4),
             torch.nn.ReLU(),
             torch.nn.Dropout(self.dropout),
-            torch.nn.Linear(self.out_features // 4, self.n_classes)
+            torch.nn.Linear(self.out_features // 4, self.n_classes),
         )
         self.model.to(self.device)
+        self.preparation(path_to_data, lr, batch_size, weights)
 
-    def preparation(self, path_to_data: str, lr: float = 1e-5, batch_size: int = 32):
+    def preparation(
+        self,
+        path_to_data: str,
+        lr: float = 1e-5,
+        batch_size: int = 32,
+        weights: list = None,
+    ):
         """Preparation of data, optimizer, scheduler and loss.
 
-            Args:
-                path_to_data (str): path to processed data
-                lr (float): learning rate
-                batch_size (int): batch size
+        Args:
+            path_to_data (str): path to processed data
+            lr (float): learning rate
+            batch_size (int): batch size
+            weights (list): weighted loss
         """
         data_train, data_valid, y_train, y_valid = split(path_to_data)
         self.train_set = CustomDataset(data_train, y_train, self.tokenizer)
         self.valid_set = CustomDataset(data_valid, y_valid, self.tokenizer)
 
-        self.train_loader = DataLoader(self.train_set, batch_size=batch_size, shuffle=True)
-        self.valid_loader = DataLoader(self.valid_set, batch_size=batch_size, shuffle=True)
+        self.train_loader = DataLoader(
+            self.train_set, batch_size=batch_size, shuffle=True
+        )
+        self.valid_loader = DataLoader(
+            self.valid_set, batch_size=batch_size, shuffle=True
+        )
 
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer,
             num_warmup_steps=0,
-            num_training_steps=len(self.train_loader) * self.epochs
+            num_training_steps=len(self.train_loader) * self.epochs,
         )
-        self.loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
+        if weights is not None:
+            weights = torch.FloatTensor(weights)
+            self.loss_fn = torch.nn.CrossEntropyLoss(weight=weights).to(self.device)
+        else:
+            self.loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
 
     def fit(self) -> tuple[float | Any, ndarray]:
         """One epoch training.
 
-            Returns:
-                (tuple[float | Any, ndarray]): train loss and accuracy
+        Returns:
+            (tuple[float | Any, ndarray]): train loss and accuracy
         """
         self.model = self.model.train()
         losses = []
@@ -103,10 +175,7 @@ class BertClassifier:
             attention_mask = data["attention_mask"].to(self.device)
             targets = data["targets"].to(self.device)
 
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
             predictions = torch.argmax(outputs.logits, dim=1)
             loss = self.loss_fn(outputs.logits, targets)
@@ -128,8 +197,8 @@ class BertClassifier:
     def eval(self) -> tuple[float | Any, ndarray]:
         """Eval scores after one epoch training.
 
-            Returns:
-                (tuple[float | Any, ndarray]): validation loss and accuracy
+        Returns:
+            (tuple[float | Any, ndarray]): validation loss and accuracy
         """
         self.model = self.model.eval()
         losses = []
@@ -141,10 +210,7 @@ class BertClassifier:
                 attention_mask = data["attention_mask"].to(self.device)
                 targets = data["targets"].to(self.device)
 
-                outputs = self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask
-                )
+                outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
                 predictions = torch.argmax(outputs.logits, dim=1)
                 loss = self.loss_fn(outputs.logits, targets)
@@ -161,31 +227,31 @@ class BertClassifier:
         start_time = time.time()
         for epoch in range(self.epochs):
             start_epoch = time.time()
-            print(f'Epoch {epoch + 1}/{self.epochs}')
+            print(f"Epoch {epoch + 1}/{self.epochs}")
             train_acc, train_loss = self.fit()
-            print(f'Train loss {train_loss:.3f} accuracy {train_acc:.3f}')
+            print(f"Train loss {train_loss:.3f} accuracy {train_acc:.3f}")
 
             val_acc, val_loss = self.eval()
-            print(f'Val loss {val_loss:.3f} accuracy {val_acc:.3f}')
-            print(f'Train epoch time: {((time.time() - start_epoch) / 60):.2f} m')
-            print('-' * 10)
+            print(f"Val loss {val_loss:.3f} accuracy {val_acc:.3f}")
+            print(f"Train epoch time: {((time.time() - start_epoch) / 60):.2f} m")
+            print("-" * 10)
 
             if val_acc > best_accuracy:
                 torch.save(self.model, self.model_save_path)
                 best_accuracy = val_acc
 
-        print(f'Total train time {((time.time() - start_time) / 60):.2f} m')
+        print(f"Total train time {((time.time() - start_time) / 60):.2f} m")
         self.model = torch.load(self.model_save_path)
 
     def predict(self, text: str, label_encoder: Any) -> ndarray:
         """Prediction of the text.
 
-            Args:
-                text (str): input text
-                label_encoder (Any): label encoder to return category name
+        Args:
+            text (str): input text
+            label_encoder (Any): label encoder to return category name
 
-            Returns:
-                (ndarray): predictions array
+        Returns:
+            (ndarray): predictions array
         """
         self.model = self.model.eval()
         encoding = self.tokenizer.encode_plus(
@@ -194,23 +260,22 @@ class BertClassifier:
             max_length=self.max_len,
             return_token_type_ids=False,
             truncation=True,
-            padding='max_length',
+            padding="max_length",
             return_attention_mask=True,
-            return_tensors='pt',
+            return_tensors="pt",
         )
 
         out = {
-            'text': text,
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten()
+            "text": text,
+            "input_ids": encoding["input_ids"].flatten(),
+            "attention_mask": encoding["attention_mask"].flatten(),
         }
 
         input_ids = out["input_ids"].to(self.device)
         attention_mask = out["attention_mask"].to(self.device)
 
         outputs = self.model(
-            input_ids=input_ids.unsqueeze(0),
-            attention_mask=attention_mask.unsqueeze(0)
+            input_ids=input_ids.unsqueeze(0), attention_mask=attention_mask.unsqueeze(0)
         )
 
         prediction = torch.argmax(outputs.logits, dim=1).cpu().numpy()[0]
@@ -219,12 +284,12 @@ class BertClassifier:
         return category_name
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     classifier = BertClassifier(
-        model_path='cointegrated/rubert-tiny',
-        tokenizer_path='cointegrated/rubert-tiny',
+        model_path="cointegrated/rubert-tiny",
+        tokenizer_path="cointegrated/rubert-tiny",
         n_classes=15,
-        epochs=5
+        epochs=5,
     )
-    classifier.preparation('data/processed/data.csv')
+    classifier.preparation("data/processed/data.csv")
     classifier.train()
